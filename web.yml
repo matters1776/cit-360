@@ -1,69 +1,99 @@
 ---
 - hosts: web
   vars:
-    db_password: password
     server_name: curriculum
     service_name: curriculum
     service_version: 1.0
-    app_key: QujjaJs3fxwtnTl7FiqhEEn1ACkf7YZW
     app_env: test
     db_host: localhost
     db_database: curriculum
     db_username: curriculum
     db_port: 3306
     service_dir: /usr/share/nginx/{{ service_name }}
+  vars_files:
+   -  external_vars.yml
   tasks:
-    - become: yes
+    - name: disable SELinux and elevate privilege
+      become: yes
       lineinfile: dest=/etc/sysconfig/selinux regexp="^SELINUX=" line="SELINUX=permissive"
-
-    - become: yes
+   
+    - name: put SELinux in permissive mode and elevate privilege
+      become: yes
       command: setenforce 0
 
-    - yum: name=epel-release update_cache=yes state=present
+    - name: install epel-release via yum and update force update cache and
+      yum: name=epel-release update_cache=yes state=present
 
-    - become: yes
+    - name: install latest nginx modules including php ldap php multibye string one way string hashing mysql database phpUNIT programming framework
+      become: yes
       yum: name=nginx,php,php-fpm,php-ldap,php-mbstring,php-mcrypt,php-mysql,php-phpunit-PHPUnit update_cache=yes state=present
       register: nginx_install
 
-    - become: yes
-      shell: curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+    - name: download composer
+      get_url:
+        url: https://getcomposer.org/installer
+        dest: /tmp/installer
 
-    - become: yes
+    - name: install composer
+      shell: cat /tmp/installer | php -- --install-dir=/usr/local/bin
+            
+    - name: elevate privledge and copy configuration file of nginx to destination file
+      become: yes
       copy: src=web/nginx.conf dest=/etc/nginx/nginx.conf mode=0000
       register: nginx_conf
 
-    - become: yes
+    - name: create vhost for site
+      become: yes
       template: src=web/vhost.conf.j2 dest=/etc/nginx/conf.d/{{ service_name }}.conf mode=0644
       register: vhost_conf
 
-    - template: src=web/php.ini.j2 dest=/etc/php.ini mode=0644
+    - name: templates php intiziation file
+      template: src=web/php.ini.j2 dest=/etc/php.ini mode=0644
       register: php_conf
+      #configures much of PHPs behavior with user read and write and group and other read permissions
 
-    - become: yes
+    - name: copies configuration file into destination file
+      become: yes
       copy: src=web/php-fpm-web.conf dest=/etc/php-fpm.d/www.conf mode=0644
       register: php_fpm_conf
+      # copies config file into dest file /etc/php-fpm.d/www.conf with user read and write and group and other read permissions
 
-    - become: yes
-      systemd: name=nginx state=restarted enabled=yes
+    - name: idempotent action that will start nginx on boot
+      become: yes
+      service: name=nginx state=restarted enabled=yes
       when: nginx_install|changed or nginx_conf|changed or vhost_conf|changed
-
-    - systemd: name=php-fpm state=restarted enabled=yes
+      #idempotent action that will always bounce the service of nginx and set service to start on boot when nginx is changed or the the vhost configuration file is updated or changed
+     
+    - name: restart FastCGI proces manager when nginx is changed 
+      service: name=php-fpm state=restarted enabled=yes
       when: nginx_install|changed or php_conf|changed or php_fpm_conf|changed
 
-    - become: yes
-      file: path="{{ service_dir }}" state=file
+    - name: creates directory
+      become: yes
+      file: path="{{ service_dir }}" state=directory
 
-    - become: yes
+    - name: unpacks service and elevate privledge 
+      become: yes
       unarchive: src=web/{{ service_name }}.tgz dest="{{ service_dir }}" mode=0755
-
-    - become: yes
+   
+    - name: unpack service_name using mode 0755
+      become: yes
       command: /usr/local/bin/composer update chdir={{ service_dir }}
+ 
+    - name: create directory
+      become: yes
+      shell: chdir="{{ service_dir }}" mode=0777
+      # old command ---- chmod -R 0777 storage
 
-    - become: yes
-      command: chmod -R 0777 storage chdir="{{ service_dir }}"
+    - name: create nginx group
+      group: name=nginx state=present
+    
+    - name: create nginx user
+      user: name=nginx state=present createhome=no shell=/bin/false group=nginx
 
-    - command: chown -R nginx:nginx . chdir="{{ service_dir }}"
+    - name: create nginx data directory
+      shell: chdir="{{ service_dir }}" state=directory owner=nginx group=nginx
 
-    - become: yes
+    - name: template env.j2 out to service_dir directory
+      become: yes
       template: src=web/env.j2 dest="{{ service_dir }}/.env" mode=0644 owner=nginx
-
