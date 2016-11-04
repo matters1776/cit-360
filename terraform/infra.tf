@@ -5,6 +5,8 @@ variable "vpc_id" {
 }
 
 provider "aws" {
+  access_key = "AKIAINVY6OVCAQKUJUSA"
+  secret_key = "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"
   region = "us-west-2"
 }
 
