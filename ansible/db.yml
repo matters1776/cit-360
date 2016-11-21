@@ -22,7 +22,7 @@
     - name: templates MariaDB answers file into a local temp folder on machine  
       template: src=db/mariadb_answers.txt dest=/tmp/mariadb_answers.txt mode=0644
 
-    - name: mysql installation
+    - name: NOT SURE -1w
       become: yes
       shell: /usr/bin/mysql_secure_installation </tmp/mariadb_answers.txt
 
