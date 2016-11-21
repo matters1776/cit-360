@@ -5,24 +5,20 @@
     service_name: curriculum
     service_version: 1.0
     app_env: test
-    db_host: localhost
+    db_host: myinstance.cgbupc5d3k0c.us-west-2.rds.amazonaws.com
     db_database: curriculum
     db_username: curriculum
     db_port: 3306
     service_dir: /usr/share/nginx/{{ service_name }}
-  vars_files:
-   -  external_vars.yml
   tasks:
-    - name: disable SELinux and elevate privilege
+    - include_vars: external_vars.yml
+    - name: install epel-release 
       become: yes
-      lineinfile: dest=/etc/sysconfig/selinux regexp="^SELINUX=" line="SELINUX=permissive"
-   
-    - name: put SELinux in permissive mode and elevate privilege
-      become: yes
-      command: setenforce 0
-
-    - name: install epel-release via yum and update force update cache and
       yum: name=epel-release update_cache=yes state=present
+
+    - name: Install Php
+      become: yes
+      shell: yes | yum install php54 php54-fpm php54-ldap php54-mbstring php54-mcrypt php54-pdo
 
     - name: install latest nginx modules including php ldap php multibye string one way string hashing mysql database phpUNIT programming framework
       become: yes
