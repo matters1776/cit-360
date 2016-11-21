@@ -6,29 +6,18 @@
 
   tasks:
     - name: Copy install files for MariaDB into local repo 
+      become: yes
       copy: src=db/MariaDB.repo dest=/etc/yum.repos.d/MariaDB.repo mode=0644
     # permission files are readable and writeable by owner, readable by users and other 
    
     - name: Install MariaDB server and client Repository 
       become: yes
-      yum: name=MariaDB-server,MariaDB-client update_cache=yes state=present
+      yum: name=MariaDB-client update_cache=yes state=present
     # update cache enabled and upgrade to the latest version
-
-    - name: starts mariadb on remote host
-      become: yes
-      service: name=mariadb state=started enabled=yes
-    # start service on boot
-
-    - name: templates MariaDB answers file into a local temp folder on machine  
-      template: src=db/mariadb_answers.txt dest=/tmp/mariadb_answers.txt mode=0644
-
-    - name: NOT SURE -1w
-      become: yes
-      shell: /usr/bin/mysql_secure_installation </tmp/mariadb_answers.txt
 
     - name: unpacks db.tgz into users home directory
       unarchive: src=db/db.tgz dest=~/
  
     - name: runs script
-      command: ./make_databases.sh {{ db_password }} localhost chdir=~/db mode=0777
+      command: ./make_databases.sh {{ db_password }} myinstance.cgbupc5d3k0c.us-west-2.rds.amazonaws.com chdir=~/db
       ignore_errors: True
