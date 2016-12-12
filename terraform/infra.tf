@@ -17,8 +17,8 @@ resource "aws_vpc" "main" {
 #provider block configures name provider (aws) - creates and manages resources
 
 provider "aws" {
-  access_key = "AKIAI2GFZACGWW6ZGRRQ"
-  secret_key = "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"
+  access_key = ""
+  secret_key = ""
   region = "us-west-2"
 }
 
