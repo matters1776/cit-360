@@ -17,8 +17,8 @@ resource "aws_vpc" "main" {
 #provider block configures name provider (aws) - creates and manages resources
 
 provider "aws" {
-  access_key = ""
-  secret_key = ""
+  access_key = "AKIAI2GFZACGWW6ZGRRQ"
+  secret_key = "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"
   region = "us-west-2"
 }
 
@@ -90,7 +90,9 @@ resource "aws_subnet" "public_subnet_a" {
     vpc_id = "${var.vpc_id}"
     cidr_block = "172.31.0.0/24"
     availability_zone = "us-west-2a"
-   
+    map_public_ip_on_launch = true
+    depends_on = ["aws_internet_gateway.gw"]
+ 
     tags {
         Name = "Public_Subnet_1"
     }
@@ -157,7 +159,7 @@ resource "aws_subnet" "private_subnet_a" {
 }
 
 
-
+#associate private_subnet_a with aws_route_table
 resource "aws_route_table_association" "private_subnet_a_rt_assoc" {
     subnet_id = "${aws_subnet.private_subnet_a.id}"
     route_table_id = "${aws_route_table.private_route_table.id}"
@@ -197,8 +199,8 @@ resource "aws_subnet" "private_subnet_c" {
 resource "aws_route_table_association" "private_subnet_c_rt_assoc" {
     subnet_id = "${aws_subnet.private_subnet_c.id}"
     route_table_id = "${aws_route_table.private_route_table.id}"
-}
 
+}
 
 # create security group, allows acess from current public IP address to an instance on port 22  via SSH
 
@@ -211,12 +213,18 @@ resource "aws_security_group" "allow_all" {
       from_port = 22
       to_port = 22
       protocol = "tcp"
-      cidr_blocks = ["130.166.220.254/32","172.31.0.0/16"]
+      cidr_blocks = ["0.0.0.0/0"]
   }
 
+  egress {
+     from_port = 0
+      to_port = 0
+      protocol = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
 
-}
+      }
 
+   }
 # create Bastion Instance EC2 - acts as a bridge to private instances via the internet 
 #bastion host helps secure AWS infastructure
 
@@ -224,12 +232,42 @@ resource "aws_instance" "bastion" {
   ami = "ami-b04e92d0"
   instance_type = "t2.micro"
   subnet_id = "${aws_subnet.public_subnet_a.id}"
-  associate_public_ip_address = true
   security_groups = ["${aws_security_group.allow_all.id}"]
   key_name = "cit360"
-}
+  tags = {
+        Name = "bastion"
+         }
+
+# connect to running instance -install pip and ansible 
+
+  provisioner "remote-exec" {
+	  inline = [
+	  "sudo easy_install pip",
+	  "sudo pip install paramiko PyYAML Jinja2 httplib2 six",
+	  "sudo pip install ansible"
+	  ]
+  }
+
+# connect via ssh and use private key cit360 key
+  connection {
+          type = "ssh"
+          user = "ec2-user"
+          agent = "false"
+          private_key = "${file("/home/matters1776/Downloads/cit360.pem")}"
+          }
 
 
+
+# copy dir ansible into bastion instance
+   provisioner "file" {
+    source = "/home/matters1776/ansible/cit-360"
+    destination = "/home/ec2-user/"
+    }
+
+}           
+
+
+ 
 
 # Security Group for DB, per assignment 3,
 resource "aws_security_group" "security_group_db" {
@@ -245,7 +283,7 @@ resource "aws_security_group" "security_group_db" {
   }
 }
 
-# new security group ingress rule port 80 and 22
+# new security group rule port 80 and 22
 resource "aws_security_group" "ingress_rule_port_80_22" {
  
   name = "ingress_rule_port_80_22"
@@ -253,16 +291,22 @@ resource "aws_security_group" "ingress_rule_port_80_22" {
   ingress {
       from_port = 80
       to_port = 80
-      protocol = "TCP"
+      protocol = "tcp"
       cidr_blocks = ["${aws_vpc.main.cidr_block}"]
   }
 
   ingress {
       from_port = 22
       to_port = 22
-      protocol = "TCP"
+      protocol = "tcp"
       cidr_blocks = ["${aws_vpc.main.cidr_block}"]
 
+  }
+  egress {
+      from_port = 0
+      to_port = 0
+      protocol = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
 }
 
 
@@ -280,6 +324,14 @@ resource "aws_security_group" "elb_security_group" {
       cidr_blocks = ["0.0.0.0/0"]
 
 }
+
+
+ egress {
+      from_port = 0
+      to_port = 0
+      protocol = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 
 #DB subnet Group
@@ -293,30 +345,55 @@ resource "aws_db_subnet_group" "default" {
 }
 
 
+
+
+
+resource "aws_security_group" "rds" {
+  vpc_id = "${var.vpc_id}"
+  description = "RDS security group"
+  ingress {
+    from_port = 3306
+    to_port = 3306
+    protocol = "tcp"
+    cidr_blocks = ["${aws_vpc.main.cidr_block}"]
+  }
+   egress {
+      from_port = 0
+      to_port = 0
+      protocol = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+
+
 #relations Database Service RDS instance
 
 #a DB instance is an isolated database environment in the cloud which can contain multiple user-created databases
 
-resource "aws_db_instance" "my-db" {
+resource "aws_db_instance" "rds" {
   allocated_storage    = 5
-  identifier           = "myinstance"
+  identifier           = "rds"
   engine               = "mariadb"
   engine_version       = "10.0.24"
   storage_type         = "gp2"
   instance_class       = "db.t2.micro"
-  multi_az             =  false
-  publicly_accessible  =  false
-  name                 = "mydb"
+  multi_az             = "false"
+  publicly_accessible  = false
+  name                 = "rds"
   username             = "root"
-  password             = "#{var.db_password}"
-  db_subnet_group_name = "main"
-  parameter_group_name = "default.mariadb10.0"
+  password             = "${var.db_password}"
+  db_subnet_group_name = "${aws_db_subnet_group.default.id}"
+  vpc_security_group_ids = ["${aws_security_group.rds.id}"]
   tags {
       Name                   = "my-db"
 
 }
 
 }
+
+
+
 
 #second EC2 instance, this instance will be placed in us-2west-2b private subnet
 
@@ -325,12 +402,12 @@ resource "aws_instance" "EC2_2" {
   instance_type = "t2.micro"
   subnet_id = "${aws_subnet.private_subnet_b.id}"
   associate_public_ip_address = false
-  security_groups = ["${aws_security_group.allow_all.id}"]
+  security_groups = ["${aws_security_group.ingress_rule_port_80_22.id}"]
   key_name = "cit360"
 
   tags {
-    Name = "webserver-b"
-    Service = "Curriculum"
+    Name = "webservice-b"
+    Service = "curriculum"
 
 
 }
@@ -342,13 +419,13 @@ resource "aws_instance" "EC2_2" {
 resource "aws_instance" "EC2_3" {
   ami = "ami-5ec1673e"
   instance_type = "t2.micro"
-  subnet_id = "${aws_subnet.private_subnet_c.id}"
   associate_public_ip_address = false
-  security_groups = ["${aws_security_group.allow_all.id}"]
+  subnet_id = "${aws_subnet.private_subnet_c.id}"
+  security_groups = ["${aws_security_group.ingress_rule_port_80_22.id}"]
   key_name = "cit360"
 
   tags {
-    Name = "webserver-c"
+    Name = "webservice-c"
     Service = "curriculum"
 
 }
