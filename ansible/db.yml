@@ -5,19 +5,25 @@
    -  external_vars.yml
 
   tasks:
-    - name: Copy install files for MariaDB into local repo 
+    - name: Copy install files for MariaDB into local repo
       become: yes
       copy: src=db/MariaDB.repo dest=/etc/yum.repos.d/MariaDB.repo mode=0644
-    # permission files are readable and writeable by owner, readable by users and other 
-   
-    - name: Install MariaDB server and client Repository 
+    # permission files are readable and writeable by owner, readable by users and other
+    - name: Install MariaDB server and client Repository
       become: yes
       yum: name=MariaDB-client update_cache=yes state=present
     # update cache enabled and upgrade to the latest version
 
+    - name: templates MariaDB answers file into a local temp folder on machine
+      template: src=db/mariadb_answers.txt dest=/tmp/mariadb_answers.txt mode=0644
+
+    - name: copy db_aws
+      become: yes
+      template: src=db/mariadb_answers.txt dest=/tmp/mariadb_answers.txt mode=0644
+
     - name: unpacks db.tgz into users home directory
-      unarchive: src=db/db.tgz dest=~/
- 
+      unarchive: src=db/db.tgz dest=~/ mode=0755
+
     - name: runs script
-      command: ./make_databases.sh {{ db_password }} myinstance.cgbupc5d3k0c.us-west-2.rds.amazonaws.com chdir=~/db
-      ignore_errors: True
+      command: ./make_databases.sh {{ db_password }} rds.cgbupc5d3k0c.us-west-2.rds.amazonaws.com chdir=~/db
+      ignore_errors: True                               
